@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Type check
+        run: bun run typecheck
+
+      - name: Unit tests
+        run: bun run test
+
+      - name: Production build
+        run: bun run build
+        env:
+          VITE_APP_NAME: Modular Frontend
+          VITE_API_BASE_URL: /api
+
+      - name: Install Playwright browser
+        run: bunx playwright install --with-deps chromium
+
+      - name: E2E tests
+        run: bun run test:e2e
+
+  docker:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t modular-frontend:${{ github.sha }} .
+
+      # Enable once a container registry is chosen. Tag with the immutable commit SHA.
+      # - name: Push image
+      #   run: |
+      #     echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login <registry> -u "${{ secrets.REGISTRY_USER }}" --password-stdin
+      #     docker tag modular-frontend:${{ github.sha }} <registry>/modular-frontend:${{ github.sha }}
+      #     docker push <registry>/modular-frontend:${{ github.sha }}
